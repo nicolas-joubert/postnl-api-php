@@ -31,6 +31,8 @@ use Psr\Cache\CacheItemInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerInterface;
 use setasign\Fpdi\PdfParser\StreamReader;
+use ThirtyBees\PostNL\Entity\Address;
+use ThirtyBees\PostNL\Entity\AdrescheckNationaal;
 use ThirtyBees\PostNL\Entity\Barcode;
 use ThirtyBees\PostNL\Entity\Customer;
 use ThirtyBees\PostNL\Entity\Label;
@@ -48,6 +50,7 @@ use ThirtyBees\PostNL\Entity\Request\GetNearestLocations;
 use ThirtyBees\PostNL\Entity\Request\GetSentDateRequest;
 use ThirtyBees\PostNL\Entity\Request\GetSignature;
 use ThirtyBees\PostNL\Entity\Request\GetTimeframes;
+use ThirtyBees\PostNL\Entity\Request\ValidateAdrescheckNationaal;
 use ThirtyBees\PostNL\Entity\Response\CompleteStatusResponse;
 use ThirtyBees\PostNL\Entity\Response\ConfirmingResponseShipment;
 use ThirtyBees\PostNL\Entity\Response\CurrentStatusResponse;
@@ -57,6 +60,7 @@ use ThirtyBees\PostNL\Entity\Response\GetLocationsInAreaResponse;
 use ThirtyBees\PostNL\Entity\Response\GetNearestLocationsResponse;
 use ThirtyBees\PostNL\Entity\Response\GetSentDateResponse;
 use ThirtyBees\PostNL\Entity\Response\ResponseTimeframes;
+use ThirtyBees\PostNL\Entity\Response\ValidateAdrescheckNationaalResponse;
 use ThirtyBees\PostNL\Entity\Shipment;
 use ThirtyBees\PostNL\Entity\SOAP\UsernameToken;
 use ThirtyBees\PostNL\Exception\AbstractException;
@@ -68,6 +72,7 @@ use ThirtyBees\PostNL\Exception\NotSupportedException;
 use ThirtyBees\PostNL\HttpClient\ClientInterface;
 use ThirtyBees\PostNL\HttpClient\CurlClient;
 use ThirtyBees\PostNL\HttpClient\GuzzleClient;
+use ThirtyBees\PostNL\Service\AdrescheckNationaalService;
 use ThirtyBees\PostNL\Service\BarcodeService;
 use ThirtyBees\PostNL\Service\ConfirmingService;
 use ThirtyBees\PostNL\Service\DeliveryDateService;
@@ -206,6 +211,9 @@ class PostNL implements LoggerAwareInterface
 
     /** @var LocationService $locationService */
     protected $locationService;
+
+    /** @var AdrescheckNationaalService $adrescheckNationaalService */
+    protected $adrescheckNationaalService;
 
     /**
      * PostNL constructor.
@@ -612,6 +620,32 @@ class PostNL implements LoggerAwareInterface
     public function setLocationService(LocationService $service)
     {
         $this->locationService = $service;
+    }
+
+    /**
+     * AdrescheckNationaal service
+     *
+     * Automatically load the location service
+     *
+     * @return AdrescheckNationaalService
+     */
+    public function getAdrescheckNationaalService()
+    {
+        if (!$this->adrescheckNationaalService) {
+            $this->setAdrescheckNationaalService(new AdrescheckNationaalService($this));
+        }
+
+        return $this->adrescheckNationaalService;
+    }
+
+    /**
+     * Set the AdrescheckNationaal service
+     *
+     * @param AdrescheckNationaalService $service
+     */
+    public function setAdrescheckNationaalService(AdrescheckNationaalService $service)
+    {
+        $this->adrescheckNationaalService = $service;
     }
 
     /**
@@ -1294,5 +1328,29 @@ class PostNL implements LoggerAwareInterface
         }
 
         return $serie;
+    }
+
+    /**
+     * Validate an Adrescheck Nationaal
+     *
+     * @return ValidateAdrescheckNationaalResponse|null
+     */
+    public function validateAdrescheckNationaal()
+    {
+        /** @var Address $customerAddress */
+        $customerAddress = $this->getCustomer()->getAddress();
+
+        return $this->getAdrescheckNationaalService()->validateAdrescheckNationaal(
+            new ValidateAdrescheckNationaal(
+                new AdrescheckNationaal(
+                    $customerAddress->getCountrycode(),
+                    $customerAddress->getStreet(),
+                    $customerAddress->getHouseNr(),
+                    $customerAddress->getHouseNrExt(),
+                    $customerAddress->getZipcode(),
+                    $customerAddress->getCity()
+                )
+            )
+        );
     }
 }
